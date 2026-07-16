@@ -1,0 +1,52 @@
+# ─── Project output ──────────────────────────────────────────
+# Generated dummy files and archives created by zgen
+z/
+output.zip
+*.zip
+
+# ─── Python ──────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+build/
+dist/
+wheels/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test / coverage / caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# ─── Editors / IDEs ──────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── macOS ───────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# ─── Windows ─────────────────────────────────────────────────
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ─── Linux ───────────────────────────────────────────────────
+*~
+.directory
+.Trash-*

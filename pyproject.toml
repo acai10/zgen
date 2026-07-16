@@ -1,0 +1,9 @@
+[project]
+name = "zgen"
+version = "0.1.0"
+description = "Small experimental, educational tool for learning how simple (flat) zip bombs work."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "tqdm>=4.66",
+]
