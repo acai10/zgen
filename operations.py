@@ -83,7 +83,8 @@ def zip_base_dir(zip_name: str = "output") -> None:
     ) as bar:
         for path in files:
             arcname = path.relative_to(BASE_DIR)
-            with open(path, "rb") as src, zf.open(str(arcname), "w") as dst:
+            # force_zip64 lets individual members exceed 4 GiB (ZIP64).
+            with open(path, "rb") as src, zf.open(str(arcname), "w", force_zip64=True) as dst:
                 while chunk := src.read(CHUNK_SIZE):
                     dst.write(chunk)
                     bar.update(len(chunk))
