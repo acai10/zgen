@@ -1,30 +1,16 @@
-"""zgen — generate dummy files, copy them, and zip the results."""
+"""zgen — a small terminal menu to generate, copy, and zip sample files."""
 
-import pathlib
-import shutil
 import sys
 
-from tqdm import tqdm
+from operations import (
+    BASE_DIR,
+    copy_file,
+    create_file,
+    remove_base_dir,
+    zip_base_dir,
+)
 
-BASE_DIR = pathlib.Path("z").resolve()
-CHUNK_SIZE = 64 * 1024  # write files in 64 KiB chunks
-
-# ---------------------------------------------------------------- helpers
-
-
-def _safe_path(filename: str) -> pathlib.Path:
-    """Resolves filename against BASE_DIR and ensures the result stays inside it."""
-    if not filename or filename in (".", ".."):
-        raise ValueError("Invalid filename.")
-
-    candidate = pathlib.Path(filename)
-    if candidate.name != filename or candidate.is_absolute():
-        raise ValueError("Filename must not contain path components.")
-
-    full_path = (BASE_DIR / filename).resolve()
-    if BASE_DIR not in full_path.parents:
-        raise ValueError("Access outside the allowed directory.")
-    return full_path
+# ---------------------------------------------------------------- input helpers
 
 
 def _ask_int(prompt: str, minimum: int = 0) -> int:
@@ -46,118 +32,76 @@ def _ask_yes_no(prompt: str) -> bool:
     return input(f"{prompt} (y/n) ").strip().lower() == "y"
 
 
-# ---------------------------------------------------------------- actions
-
-
-def create_file(filename: str, size: int) -> None:
-    """Creates a file of exactly `size` bytes inside BASE_DIR."""
-    BASE_DIR.mkdir(parents=True, exist_ok=True)
-    path = _safe_path(filename)
-
-    try:
-        with open(path, "xb") as f, tqdm(
-            total=size, desc="Creating file", unit="B", unit_scale=True
-        ) as bar:
-            remaining = size
-            while remaining > 0:
-                chunk = min(remaining, CHUNK_SIZE)
-                f.write(b"0" * chunk)
-                bar.update(chunk)
-                remaining -= chunk
-        print(f"  Created {path.name} ({size} bytes).")
-    except FileExistsError:
-        print(f"  {filename} already exists.")
-
-
-def copy_file(filename: str, num_copies: int) -> None:
-    """Creates numbered copies of filename inside BASE_DIR."""
-    source = _safe_path(filename)
-    if not source.is_file():
-        print(f"  {filename} does not exist.")
-        return
-
-    stem = filename.removesuffix(".txt")
-    for i in tqdm(range(num_copies), desc="Copying file", unit="copy"):
-        destination = _safe_path(f"{stem}_copy_{i + 1}.txt")
-        shutil.copy2(source, destination)
-    print(f"  Created {num_copies} {'copy' if num_copies == 1 else 'copies'}.")
-
-
-def zip_base_dir(zip_name: str = "output") -> None:
-    """Compresses BASE_DIR into <zip_name>.zip next to the script."""
-    if not BASE_DIR.is_dir():
-        print(f"  {BASE_DIR} does not exist — nothing to zip.")
-        return
-    archive = shutil.make_archive(zip_name, "zip", BASE_DIR)
-    print(f"  Compressed {BASE_DIR.name}/ into {pathlib.Path(archive).name}.")
-
-
-def remove_base_dir() -> None:
-    """Removes BASE_DIR and everything inside it."""
-    try:
-        shutil.rmtree(BASE_DIR)
-        print(f"  Removed {BASE_DIR}.")
-    except FileNotFoundError:
-        print(f"  {BASE_DIR} does not exist.")
-
-
 # ---------------------------------------------------------------- menu
 
-
-MENU_UNICODE = """
-┌──────────────── zgen ────────────────┐
-│  1  Create a sample file             │
-│  2  Copy the sample file             │
-│  3  Zip the base directory           │
-│  4  Delete the base directory        │
-│  q  Quit                             │
-└──────────────────────────────────────┘"""
-
-MENU_ASCII = """
-+---------------- zgen ----------------+
-|  1  Create a sample file             |
-|  2  Copy the sample file             |
-|  3  Zip the base directory           |
-|  4  Delete the base directory        |
-|  q  Quit                             |
-+--------------------------------------+"""
+# (label, action). action is None for "Quit".
+MENU_ITEMS = [
+    ("Create a sample file", lambda: create_file("sample.txt", _ask_int("Size of the file in bytes: "))),
+    ("Copy the sample file", lambda: copy_file("sample.txt", _ask_int("Number of copies: "))),
+    ("Zip the base directory", zip_base_dir),
+    ("Delete the base directory",
+     lambda: remove_base_dir() if _ask_yes_no(f"Delete {BASE_DIR} and all its contents?") else None),
+    ("Quit", None),
+]
 
 
-def _pick_menu() -> str:
-    """Uses the box-drawing menu only if the terminal's encoding can print it."""
-    try:
-        MENU_UNICODE.encode(sys.stdout.encoding or "ascii")
-        return MENU_UNICODE
-    except UnicodeEncodeError:
-        return MENU_ASCII
+def _dispatch(label: str) -> bool:
+    """Runs the action for a menu label. Returns False if the app should quit."""
+    for item_label, action in MENU_ITEMS:
+        if item_label == label:
+            if action is None:  # Quit
+                return False
+            try:
+                action()
+            except ValueError as e:
+                print(f"  Error: {e}")
+            return True
+    return True
+
+
+def _run_interactive() -> None:
+    """Arrow-key menu (questionary) for real terminals."""
+    import questionary
+
+    labels = [label for label, _ in MENU_ITEMS]
+    print(f"Working directory: {BASE_DIR}")
+    while True:
+        choice = questionary.select(
+            "zgen — choose an action:",
+            choices=labels,
+            use_shortcuts=True,  # number keys 1-9 jump to a choice
+            qmark="»",
+        ).ask()
+        if choice is None or not _dispatch(choice):  # None = Esc/Ctrl-C
+            print("Bye!")
+            return
+
+
+def _run_basic() -> None:
+    """Numbered fallback for when stdin isn't an interactive terminal (pipes/CI)."""
+    print(f"Working directory: {BASE_DIR}")
+    while True:
+        print("\nzgen — choose an action:")
+        for i, (label, _) in enumerate(MENU_ITEMS, 1):
+            print(f"  {i}  {label}")
+        choice = input("> ").strip().lower()
+
+        if choice in {"q", "quit", str(len(MENU_ITEMS))}:
+            print("Bye!")
+            return
+        if choice.isdigit() and 1 <= int(choice) <= len(MENU_ITEMS):
+            if not _dispatch(MENU_ITEMS[int(choice) - 1][0]):
+                print("Bye!")
+                return
+        else:
+            print("  Unknown option.")
 
 
 def main() -> None:
-    menu = _pick_menu()
-    print(f"Working directory: {BASE_DIR}")
-    while True:
-        print(menu)
-        choice = input("> ").strip().lower()
-
-        try:
-            if choice == "1":
-                size = _ask_int("Size of the file in bytes: ")
-                create_file("sample.txt", size)
-            elif choice == "2":
-                num_copies = _ask_int("Number of copies: ")
-                copy_file("sample.txt", num_copies)
-            elif choice == "3":
-                zip_base_dir()
-            elif choice == "4":
-                if _ask_yes_no(f"Delete {BASE_DIR} and all its contents?"):
-                    remove_base_dir()
-            elif choice == "q":
-                print("Bye!")
-                return
-            else:
-                print("  Unknown option.")
-        except ValueError as e:
-            print(f"  Error: {e}")
+    if sys.stdin.isatty():
+        _run_interactive()
+    else:
+        _run_basic()
 
 
 if __name__ == "__main__":

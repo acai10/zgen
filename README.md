@@ -2,20 +2,23 @@
 
 A small, experimental, **educational** terminal tool for learning how simple **zip bombs** work. It generates highly compressible dummy files of an exact size, copies them in bulk, and zips the result — producing a small archive that expands to a much larger size on disk.
 
-Works on Windows, macOS, and Linux — requires only Python 3.9+ and [tqdm](https://github.com/tqdm/tqdm).
+Works on Windows, macOS, and Linux — requires Python 3.9+, [tqdm](https://github.com/tqdm/tqdm) for the progress bars, and [questionary](https://github.com/tmbo/questionary) for the arrow-key menu.
 
 > [!WARNING]
 > **Disclaimer — educational use only.** This is a learning project that demonstrates data compression and the mechanics of "flat" zip bombs. It only creates *small*, single-level bombs, and the uncompressed data must be written to your own disk first (see [Limits](#limits)). Do **not** use it to create files intended to disrupt, overwhelm, or attack any system you do not own or have explicit permission to test. Extracting a large zip bomb can fill your own disk. You are responsible for how you use it. Provided as-is, with no warranty.
 
 ```
 ┌──────────────── zgen ────────────────┐
-│  1  Create a sample file             │
-│  2  Copy the sample file             │
-│  3  Zip the base directory           │
-│  4  Delete the base directory        │
-│  q  Quit                             │
+│ ▶ Create a sample file               │
+│   Copy the sample file               │
+│   Zip the base directory             │
+│   Delete the base directory          │
+│   Quit                               │
 └──────────────────────────────────────┘
+  ↑/↓ to move, Enter to select, q to quit
 ```
+
+Navigate with the **arrow keys** and press **Enter**, or use the number keys as shortcuts. The progress bars are colored (green for creating/copying, cyan for zipping).
 
 ## How it works
 
@@ -44,13 +47,22 @@ uv run main.py
 Or with plain Python:
 
 ```sh
-pip install tqdm
+pip install tqdm questionary
 python main.py
 ```
 
+## Project layout
+
+```
+main.py         # terminal menu and user prompts
+operations.py   # the file operations (create / copy / zip / remove)
+```
+
+`operations.py` knows nothing about the menu, so you can import and reuse it on its own.
+
 ## Usage
 
-Pick an option from the menu:
+Move the highlight with the arrow keys and press Enter (or press the matching number):
 
 1. **Create a sample file** — asks for a size in bytes and creates `z/sample.txt` with exactly that many bytes, with a progress bar.
 2. **Copy the sample file** — asks for a count and creates `sample_copy_1.txt`, `sample_copy_2.txt`, … inside `z/`.
@@ -68,5 +80,5 @@ This tool intentionally only produces **small, flat** zip bombs, and it is hones
 ## Notes
 
 - All file operations are sandboxed to the `z/` folder; path traversal is rejected.
-- The menu automatically falls back to plain ASCII on terminals that can't render box-drawing characters.
-- Progress bars are byte-accurate and large files are written in 64 KiB chunks.
+- The arrow-key menu is powered by [questionary](https://github.com/tmbo/questionary) and works across Windows, macOS, and Linux. When input isn't an interactive terminal (pipes, CI), it automatically falls back to a numbered text prompt.
+- Progress bars are byte-accurate, colored, and large files are written in 64 KiB chunks.
